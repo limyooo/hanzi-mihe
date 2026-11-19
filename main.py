@@ -4,9 +4,32 @@ from datetime import datetime
 
 from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
 from starlette.responses import FileResponse
 
 app = FastAPI(title="hanzi-mihe")
+
+
+# ---------- 返回数据的格式 ----------
+class Message(BaseModel):
+    role: str          # "user" 或 "assistant"
+    content: str
+
+
+class SessionInfo(BaseModel):
+    """会话列表里每一项"""
+    id: str
+    name: str
+    created_at: str
+
+
+class Session(SessionInfo):
+    """新建会话时返回：在 SessionInfo 基础上多了 messages"""
+    messages: list[Message]
+
+
+class OkResponse(BaseModel):
+    ok: bool
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # 存放会话的目录（相对 main.py，而不是相对启动时的 cwd）
@@ -47,7 +70,7 @@ def root():
 
 
 # 会话列表：最新的在前
-@app.get("/api/sessions")
+@app.get("/api/sessions", response_model=list[SessionInfo])
 def list_sessions():
     sessions = []
     for filename in os.listdir(SESSIONS_DIR):
@@ -59,7 +82,7 @@ def list_sessions():
 
 
 # 新建会话
-@app.post("/api/sessions")
+@app.post("/api/sessions", response_model=Session)
 def create_session():
     now = datetime.now()
     # 1. 生成会话 id / 名称
@@ -81,7 +104,7 @@ def create_session():
 
 
 # 删除会话
-@app.delete("/api/sessions/{sid}")
+@app.delete("/api/sessions/{sid}", response_model=OkResponse)
 def delete_session(sid: str):
     load_session(sid)  # 不存在会返回 404
     os.remove(session_path(sid))
@@ -89,7 +112,7 @@ def delete_session(sid: str):
 
 
 # 获取某个会话的消息
-@app.get("/api/sessions/{sid}/messages")
+@app.get("/api/sessions/{sid}/messages", response_model=list[Message])
 def get_messages(sid: str):
     return load_session(sid)["messages"]
 
